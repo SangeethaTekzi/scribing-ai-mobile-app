@@ -13,9 +13,7 @@
       "icon": "./assets/expo.icon",
       "infoPlist": {
         "NSMicrophoneUsageDescription": "Scribing AI needs microphone access to record consultations.",
-        "UIBackgroundModes": [
-          "audio"
-        ]
+        "UIBackgroundModes": ["audio"]
       }
     },
     "android": {
@@ -47,12 +45,6 @@
         "expo-image-picker",
         {
           "photosPermission": "Allow Scribing AI to access your photos for profile and signature uploads."
-        }
-      ],
-      [
-        "expo-av",
-        {
-          "microphonePermission": "Allow Scribing AI to access your microphone for consultation recording."
         }
       ],
       [

@@ -1,6 +1,6 @@
 import type { Patient } from "@/types/patient.types";
 import type { Session } from "@/types/session.types";
-import type { User } from "@/types/user.types";
+import type { AuthUser } from "@/types/auth.types";
 
 export const APPOINTMENT_STATUSES = [
   "scheduled",
@@ -29,7 +29,7 @@ export interface Appointment {
   appointmentCode?: string;
   organizationId?: string | { _id?: string; id?: string; name?: string };
   patientId?: string | Patient;
-  doctorId?: string | User;
+  doctorId?: string | AuthUser;
   scheduledStart: string;
   scheduledEnd: string;
   appointmentType?: AppointmentType;

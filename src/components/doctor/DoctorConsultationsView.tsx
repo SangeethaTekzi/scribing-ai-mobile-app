@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -46,7 +46,10 @@ import {
 import { getDefaultDoctorDateRange } from "@/utils/doctor-dashboard-date-range";
 import { getGreeting } from "@/utils/date.utils";
 import { useDoctorDashboardStats } from "@/hooks/doctor/useDoctorDashboardStats";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { DoctorDashboardSummary } from "@/components/doctor/DoctorDashboardSummary";
+import { logDashboardDiag } from "@/utils/dashboard-diagnostics";
+import { shouldShowDoctorQueueLoading } from "@/utils/doctor-queue-loading.utils";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -84,7 +87,6 @@ export function DoctorConsultationsView() {
     isScopeReady,
     isError,
     refetch,
-    isRefetching,
   } = useDoctorQueue();
   const { checkInAppointment } = useAppointmentMutations();
   const [openingKey, setOpeningKey] = useState<string | null>(null);
@@ -142,10 +144,28 @@ export function DoctorConsultationsView() {
     [items],
   );
 
-  const handleRefresh = () => {
-    refetch();
-    refetchDashboard();
-  };
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([refetch(), refetchDashboard()]);
+  }, [refetch, refetchDashboard]);
+
+  const { isUserRefreshing, handleRefresh: onPullRefresh } =
+    usePullToRefresh(handleRefresh);
+
+  useEffect(() => {
+    logDashboardDiag("dashboard_render", {
+      dashboardLoading,
+      queueLoading: isLoading,
+      scopeReady: isScopeReady,
+      itemCount: items.length,
+      hasDashboardStats: Boolean(dashboardStats),
+    });
+  }, [
+    dashboardLoading,
+    dashboardStats,
+    isLoading,
+    isScopeReady,
+    items.length,
+  ]);
 
   const clinicDateLabel = useMemo(
     () =>
@@ -244,14 +264,21 @@ export function DoctorConsultationsView() {
     }
   };
 
-  const showLoading = !isScopeReady || isLoading;
+  const showLoading = shouldShowDoctorQueueLoading(
+    isScopeReady,
+    isLoading,
+    items.length,
+  );
 
   return (
     <View style={[styles.screen, { paddingTop: insets.top }]}>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={handleRefresh} />
+          <RefreshControl
+            refreshing={isUserRefreshing}
+            onRefresh={onPullRefresh}
+          />
         }
         showsVerticalScrollIndicator={false}
       >
@@ -402,7 +429,7 @@ function QueueRow({
   initials: string;
   status?: string;
   primaryLabel: string;
-  secondaryLabel: string;
+  secondaryLabel?: string;
   onPrimary?: () => void;
   onSecondary?: () => void;
   primaryLoading?: boolean;
@@ -425,7 +452,7 @@ function QueueRow({
         </View>
       </View>
       <View style={styles.queueActions}>
-        {!secondaryHidden && onSecondary ? (
+        {!secondaryHidden && onSecondary && secondaryLabel ? (
           <Button
             variant="outline"
             size="sm"

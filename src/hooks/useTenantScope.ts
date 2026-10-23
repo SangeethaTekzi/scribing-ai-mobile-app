@@ -1,6 +1,6 @@
 import { useAuthStore } from "@/store/auth.store";
 import { useWorkspaceStore } from "@/store/workspace.store";
-import { getUserOrganizationId } from "@/types/auth.types";
+import { resolveOrganizationId } from "@/utils/tenant-scope.utils";
 
 export const useTenantScope = () => {
   const user = useAuthStore((state) => state.user);
@@ -8,11 +8,7 @@ export const useTenantScope = () => {
     (state) => state.selectedWorkspace,
   );
 
-  const organizationId =
-    selectedWorkspace?.organizationId ||
-    selectedWorkspace?.id ||
-    getUserOrganizationId(user) ||
-    "";
+  const organizationId = resolveOrganizationId(selectedWorkspace, user);
 
   return {
     organizationId,

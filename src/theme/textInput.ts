@@ -10,7 +10,7 @@ export const textInputNoFocusRingStyle: TextStyle = Platform.select({
   ios: {},
   default: {
     outlineStyle: "none",
-  } as TextStyle,
+  } as unknown as TextStyle,
 }) ?? {};
 
 export const textInputNoFocusRingProps = Platform.select({

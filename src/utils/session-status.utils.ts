@@ -13,10 +13,16 @@ export const REVIEW_READY_STATUSES: SessionStatus[] = [
   "completed",
 ];
 
+/** Statuses where server-side pipeline work may still be in flight (queue polling). */
 export const PIPELINE_ACTIVE_STATUSES: SessionStatus[] = [
   "recording",
   "uploading",
   "processing",
+];
+
+/** Includes transcript_ready for UI that should wait before review actions. */
+export const PIPELINE_POLL_STATUSES: SessionStatus[] = [
+  ...PIPELINE_ACTIVE_STATUSES,
   "transcript_ready",
 ];
 

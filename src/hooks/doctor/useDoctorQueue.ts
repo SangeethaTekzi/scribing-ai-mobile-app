@@ -1,13 +1,14 @@
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/auth.store";
 import { useWorkspaceStore } from "@/store/workspace.store";
-import { useTenantScope } from "@/hooks/useTenantScope";
 import { encounterService } from "@/services/encounter.service";
 import { sessionKeys } from "@/services/query-keys";
 import type { DoctorQueueItem } from "@/types/encounter.types";
 import type { Session } from "@/types/session.types";
 import type { Patient } from "@/types/patient.types";
 import { isPipelineActive } from "@/utils/session-status.utils";
+import { resolveOrganizationId } from "@/utils/tenant-scope.utils";
+import { logDashboardDiag } from "@/utils/dashboard-diagnostics";
 import { getLocalDayKey } from "@/utils/date.utils";
 import { PIPELINE_POLL_MS } from "@/constants/config";
 
@@ -54,10 +55,10 @@ export const useDoctorQueue = () => {
   const selectedWorkspace = useWorkspaceStore(
     (state) => state.selectedWorkspace,
   );
-  const { organizationId } = useTenantScope();
+  const organizationId = resolveOrganizationId(selectedWorkspace, user);
 
   const doctorId = String(user?.id || user?._id || "");
-  const scopedOrganizationId = organizationId || selectedWorkspace?.id || "";
+  const scopedOrganizationId = organizationId;
   const todayKey = getLocalDayKey();
 
   const isScopeReady =
@@ -75,6 +76,11 @@ export const useDoctorQueue = () => {
       todayKey,
     ],
     queryFn: async () => {
+      logDashboardDiag("queue_fetch", {
+        doctorId,
+        organizationId: scopedOrganizationId,
+        todayKey,
+      });
       const data = await encounterService.getDoctorQueue({
         organizationId: scopedOrganizationId,
         doctorId,

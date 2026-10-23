@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { appointmentService } from "@/services/appointment.service";
 import { appointmentKeys } from "@/services/query-keys";
+import { useAuthStore } from "@/store/auth.store";
 import { useTenantScope } from "@/hooks/useTenantScope";
 import { getUserOrganizationId } from "@/types/auth.types";
 
@@ -19,7 +20,8 @@ interface UseAppointmentsParams {
 }
 
 export const useAppointments = (params?: UseAppointmentsParams) => {
-  const { organizationId: scopedOrgId, user } = useTenantScope();
+  const user = useAuthStore((state) => state.user);
+  const { organizationId: scopedOrgId } = useTenantScope();
   const organizationId =
     params?.organizationId ||
     scopedOrgId ||

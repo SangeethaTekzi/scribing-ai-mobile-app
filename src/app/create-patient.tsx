@@ -21,11 +21,10 @@ import {
 } from "@/utils/patient.utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { router } from "expo-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import {
   Alert,
-  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -34,6 +33,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useFormScrollIntoView } from "@/hooks/useFormScrollIntoView";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { z } from "zod";
 
@@ -73,32 +73,14 @@ export default function CreatePatientScreen() {
   const { createSession } = useSessionMutations();
   const [startConsult, setStartConsult] = useState(true);
   const scrollRef = useRef<ScrollView>(null);
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-
-  useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const showSub = Keyboard.addListener(showEvent, (event) => {
-      setKeyboardHeight(event.endCoordinates.height);
-    });
-    const hideSub = Keyboard.addListener(hideEvent, () => {
-      setKeyboardHeight(0);
-    });
-
-    return () => {
-      showSub.remove();
-      hideSub.remove();
-    };
-  }, []);
-
-  const scrollToBottom = useCallback(() => {
-    setTimeout(() => {
-      scrollRef.current?.scrollToEnd({ animated: true });
-    }, 120);
-  }, []);
+  const baseScrollBottomPadding = insets.bottom + spacing["3xl"];
+  const {
+    scrollViewportRef,
+    setFieldRef,
+    onFocusField,
+    onScroll,
+    scrollBottomPadding,
+  } = useFormScrollIntoView(scrollRef, baseScrollBottomPadding);
 
   const {
     control,
@@ -193,26 +175,27 @@ export default function CreatePatientScreen() {
       <GlassHeader title="New Patient" showBack />
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? insets.top + 8 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
+        <View ref={scrollViewportRef} style={styles.flex}>
         <ScrollView
           ref={scrollRef}
           contentContainerStyle={[
             styles.content,
-            {
-              paddingBottom:
-                insets.bottom + spacing["3xl"] + keyboardHeight + spacing.xl,
-            },
+            { paddingBottom: scrollBottomPadding },
           ]}
           keyboardShouldPersistTaps="handled"
-          automaticallyAdjustKeyboardInsets
+          keyboardDismissMode="on-drag"
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           showsVerticalScrollIndicator={false}
         >
+          <View style={styles.form}>
           <Text style={styles.subtitle}>
             Register a patient. Patient code is generated automatically.
           </Text>
 
+          <View ref={setFieldRef("firstName")}>
           <Controller
             control={control}
             name="firstName"
@@ -222,11 +205,14 @@ export default function CreatePatientScreen() {
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
+                onFocus={onFocusField("firstName")}
                 error={errors.firstName?.message}
                 editable={!loading}
               />
             )}
           />
+          </View>
+          <View ref={setFieldRef("lastName")}>
           <Controller
             control={control}
             name="lastName"
@@ -236,11 +222,13 @@ export default function CreatePatientScreen() {
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
+                onFocus={onFocusField("lastName")}
                 error={errors.lastName?.message}
                 editable={!loading}
               />
             )}
           />
+          </View>
 
           <Text style={styles.label}>Gender</Text>
           <View style={styles.chipRow}>
@@ -265,6 +253,7 @@ export default function CreatePatientScreen() {
             ))}
           </View>
 
+          <View ref={setFieldRef("phoneNumber")}>
           <Controller
             control={control}
             name="phoneNumber"
@@ -280,11 +269,14 @@ export default function CreatePatientScreen() {
                   onChange(sanitizeIndianPhoneInput(text))
                 }
                 onBlur={onBlur}
+                onFocus={onFocusField("phoneNumber")}
                 error={errors.phoneNumber?.message}
                 editable={!loading}
               />
             )}
           />
+          </View>
+          <View ref={setFieldRef("age")}>
           <Controller
             control={control}
             name="age"
@@ -298,11 +290,14 @@ export default function CreatePatientScreen() {
                 value={value}
                 onChangeText={(text) => onChange(sanitizePatientAgeInput(text))}
                 onBlur={onBlur}
+                onFocus={onFocusField("age")}
                 error={errors.age?.message}
                 editable={!loading}
               />
             )}
           />
+          </View>
+          <View ref={setFieldRef("email")}>
           <Controller
             control={control}
             name="email"
@@ -314,11 +309,14 @@ export default function CreatePatientScreen() {
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
+                onFocus={onFocusField("email")}
                 error={errors.email?.message}
                 editable={!loading}
               />
             )}
           />
+          </View>
+          <View ref={setFieldRef("address")}>
           <Controller
             control={control}
             name="address"
@@ -328,11 +326,12 @@ export default function CreatePatientScreen() {
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
-                onFocus={scrollToBottom}
+                onFocus={onFocusField("address")}
                 editable={!loading}
               />
             )}
           />
+          </View>
 
           <Text style={styles.label}>Blood group</Text>
           <View style={styles.chipRow}>
@@ -359,6 +358,7 @@ export default function CreatePatientScreen() {
             ))}
           </View>
 
+          <View ref={setFieldRef("allergies")}>
           <Controller
             control={control}
             name="allergies"
@@ -368,12 +368,13 @@ export default function CreatePatientScreen() {
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
-                onFocus={scrollToBottom}
+                onFocus={onFocusField("allergies")}
                 editable={!loading}
                 placeholder="Penicillin, Dust"
               />
             )}
           />
+          </View>
 
           <Pressable
             style={styles.toggleRow}
@@ -393,7 +394,9 @@ export default function CreatePatientScreen() {
             onPress={handleSubmit(onSubmit)}
             size="lg"
           />
+          </View>
         </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </View>
   );
@@ -405,6 +408,8 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.lg,
+  },
+  form: {
     gap: spacing.md,
   },
   subtitle: {

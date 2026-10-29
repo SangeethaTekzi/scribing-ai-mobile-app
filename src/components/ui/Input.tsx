@@ -53,19 +53,32 @@ export function Input({
         <TextInput
           {...props}
           {...textInputNoFocusRingProps}
-          secureTextEntry={secure}
-          style={[styles.input, textInputNoFocusRingStyle, style]}
+          secureTextEntry={isPassword ? secure : false}
+          style={[
+            styles.input,
+            isPassword && styles.inputWithToggle,
+            textInputNoFocusRingStyle,
+            style,
+          ]}
           placeholderTextColor={colors.mutedLight}
           cursorColor={colors.primary}
           selectionColor={colors.primaryLight}
           onFocus={props.onFocus}
           onBlur={props.onBlur}
+          autoCapitalize={isPassword ? "none" : props.autoCapitalize}
+          autoCorrect={isPassword ? false : props.autoCorrect}
         />
         {isPassword ? (
-          <Pressable onPress={() => setSecure((v) => !v)} hitSlop={8}>
+          <Pressable
+            onPress={() => setSecure((v) => !v)}
+            hitSlop={12}
+            style={styles.passwordToggle}
+            accessibilityRole="button"
+            accessibilityLabel={secure ? "Show password" : "Hide password"}
+          >
             <Ionicons
               name={secure ? "eye-outline" : "eye-off-outline"}
-              size={20}
+              size={22}
               color={colors.muted}
             />
           </Pressable>
@@ -101,9 +114,21 @@ const styles = StyleSheet.create({
   leftIcon: { marginRight: spacing.sm },
   input: {
     flex: 1,
+    minWidth: 0,
     ...typography.body,
     color: colors.foreground,
     paddingVertical: spacing.md,
+  },
+  inputWithToggle: {
+    paddingRight: spacing.xs,
+  },
+  passwordToggle: {
+    flexShrink: 0,
+    marginLeft: spacing.sm,
+    minWidth: 40,
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
   },
   error: {
     ...typography.caption,

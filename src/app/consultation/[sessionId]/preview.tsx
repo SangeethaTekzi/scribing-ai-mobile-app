@@ -29,7 +29,19 @@ import { SessionRecordingPlayer } from "@/components/consultation/SessionRecordi
 import { SaveConsultationSheet } from "@/components/consultation/SaveConsultationSheet";
 import { getPatientFromSession } from "@/hooks/doctor/useDoctorQueue";
 import { getPatientFullName } from "@/utils/patient.utils";
-import { isConsultationCompleted } from "@/utils/session-status.utils";
+import {
+  EMPTY_AI_NOTES,
+} from "@/utils/consultation-workflow.utils";
+import {
+  canAccessAiNotesWorkflow,
+  isConsultationCompleted,
+} from "@/utils/session-status.utils";
+import {
+  getPrescriptionApiErrorMessage,
+  isPrescriptionAlreadySignedError,
+  prescriptionService,
+} from "@/services/prescription.service";
+import { toSignPrescriptionMedications } from "@/utils/prescription-sign.utils";
 import { getSessionDepartmentName } from "@/types/session.types";
 import {
   buildAiNotesExportContent,
@@ -56,7 +68,9 @@ export default function PreviewScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { data: session, isLoading: sessionLoading } = useSession(sessionId);
-  const { aiNotes, isLoading, isError, refetch, update } = useAiNotes(sessionId);
+  const { aiNotes, isLoading, isError, refetch, update, workflowEnabled } =
+    useAiNotes(sessionId);
+  const resolvedNotes = aiNotes ?? session?.aiNotes ?? null;
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [voiceEditOpen, setVoiceEditOpen] = useState(false);
@@ -79,10 +93,11 @@ export default function PreviewScreen() {
   };
 
   const handlePdf = async () => {
-    if (!session || !aiNotes || !sessionId) return;
+    if (!session || !sessionId) return;
+    const notes = resolvedNotes ?? EMPTY_AI_NOTES;
     try {
       setExporting(true);
-      const content = buildAiNotesExportContent(aiNotes, session);
+      const content = buildAiNotesExportContent(notes, session);
       const html = buildAiNotesExportHtml(content);
       const patient = getPatientFromSession(session);
       const label = patient
@@ -111,8 +126,9 @@ export default function PreviewScreen() {
   const handlePrint = async () => {
     try {
       setExporting(true);
-      if (!session || !aiNotes) return;
-      const content = buildAiNotesExportContent(aiNotes, session);
+      if (!session) return;
+      const notes = resolvedNotes ?? EMPTY_AI_NOTES;
+      const content = buildAiNotesExportContent(notes, session);
       const html = buildAiNotesExportHtml(content);
       await Print.printAsync({ html });
     } catch {
@@ -123,10 +139,11 @@ export default function PreviewScreen() {
   };
 
   const saveConsultation = async () => {
-    if (!sessionId || !aiNotes) return;
+    if (!sessionId) return;
+    const notes = resolvedNotes ?? EMPTY_AI_NOTES;
     const medications =
-      normalizeMedicationsForEditing(aiNotes.medications, aiNotes.plan) ||
-      aiNotes.medications ||
+      normalizeMedicationsForEditing(notes.medications, notes.plan) ||
+      notes.medications ||
       [];
     const issue = findClinicalCompletenessIssue(medications);
     if (issue) {
@@ -139,19 +156,36 @@ export default function PreviewScreen() {
     try {
       setSaving(true);
       await update.mutateAsync({
-        summary: aiNotes.summary,
-        subjective: aiNotes.subjective,
-        objective: aiNotes.objective,
-        assessment: aiNotes.assessment,
-        plan: aiNotes.plan,
-        remarks: aiNotes.remarks,
+        summary: notes.summary,
+        subjective: notes.subjective,
+        objective: notes.objective,
+        assessment: notes.assessment,
+        plan: notes.plan,
+        remarks: notes.remarks,
         medications,
       });
+
+      const hasMedications = medications.some((med) => med.medicine.trim());
+      if (hasMedications) {
+        try {
+          await prescriptionService.signPrescription(sessionId, {
+            medications: toSignPrescriptionMedications(medications),
+          });
+        } catch (error) {
+          if (!isPrescriptionAlreadySignedError(error)) {
+            throw error;
+          }
+        }
+      }
+
       setSaveSheetOpen(true);
     } catch (error) {
       Alert.alert(
         "Save failed",
-        getApiErrorMessage(error, "Could not save consultation notes."),
+        getPrescriptionApiErrorMessage(
+          error,
+          getApiErrorMessage(error, "Could not save consultation notes."),
+        ),
       );
     } finally {
       setSaving(false);
@@ -174,9 +208,21 @@ export default function PreviewScreen() {
     return <LoadingScreen message="Preparing preview…" />;
   }
 
-  if (isError || !aiNotes || !session) {
+  if (isError || !session) {
     return <ErrorState onRetry={refetch} />;
   }
+
+  if (!resolvedNotes && !workflowEnabled) {
+    return (
+      <ErrorState
+        title="Notes not ready"
+        message="Complete processing or add manual notes first."
+        onRetry={() => router.replace(`/consultation/${sessionId}/notes`)}
+      />
+    );
+  }
+
+  const displayNotes = resolvedNotes ?? EMPTY_AI_NOTES;
 
   const patient = getPatientFromSession(session);
 
@@ -230,31 +276,31 @@ export default function PreviewScreen() {
           title="Chief Complaint / HPI"
           open={open.subjective}
           onToggle={() => toggle("subjective")}
-          body={aiNotes.subjective}
+          body={displayNotes.subjective}
         />
         <Collapsible
           title="Examination"
           open={open.objective}
           onToggle={() => toggle("objective")}
-          body={aiNotes.objective}
+          body={displayNotes.objective}
         />
         <Collapsible
           title="Assessment / Diagnosis"
           open={open.assessment}
           onToggle={() => toggle("assessment")}
-          body={aiNotes.assessment}
+          body={displayNotes.assessment}
         />
         <Collapsible
           title="Treatment Plan"
           open={open.plan}
           onToggle={() => toggle("plan")}
-          body={aiNotes.plan}
+          body={displayNotes.plan}
         />
         <Collapsible
           title="Advice / Follow-up"
           open={open.remarks}
           onToggle={() => toggle("remarks")}
-          body={aiNotes.remarks}
+          body={displayNotes.remarks}
         />
 
         <Card>
@@ -270,10 +316,10 @@ export default function PreviewScreen() {
             />
           </Pressable>
           {open.medications ? (
-            (aiNotes.medications || []).length === 0 ? (
+            (displayNotes.medications || []).length === 0 ? (
               <Text style={styles.body}>No medications</Text>
             ) : (
-              aiNotes.medications!.map((med, index) => (
+              displayNotes.medications!.map((med, index) => (
                 <View key={`${med.medicine}-${index}`} style={styles.medRow}>
                   <Text style={styles.medName}>{med.medicine}</Text>
                   <Text style={styles.medDose}>

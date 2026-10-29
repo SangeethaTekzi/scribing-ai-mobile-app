@@ -128,7 +128,10 @@ export default function ResetPasswordScreen() {
                     onChangeText={onChange}
                     onBlur={onBlur}
                     error={errors.password?.message}
+                    placeholder="Enter new password"
                     editable={!loading}
+                    textContentType="newPassword"
+                    autoComplete="password-new"
                   />
                 )}
               />
@@ -143,7 +146,10 @@ export default function ResetPasswordScreen() {
                     onChangeText={onChange}
                     onBlur={onBlur}
                     error={errors.confirmPassword?.message}
+                    placeholder="Re-enter new password"
                     editable={!loading}
+                    textContentType="newPassword"
+                    autoComplete="password-new"
                   />
                 )}
               />

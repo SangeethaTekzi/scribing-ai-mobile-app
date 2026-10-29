@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { sessionService } from "@/services/session.service";
 import { sessionKeys } from "@/services/query-keys";
-import { isPipelineActive } from "@/utils/session-status.utils";
+import { shouldPollSessionDetail } from "@/utils/session-status.utils";
 import { PIPELINE_POLL_MS } from "@/constants/config";
 
 export const useSession = (sessionId?: string) => {
@@ -10,10 +10,8 @@ export const useSession = (sessionId?: string) => {
     queryFn: () => sessionService.getById(sessionId!),
     enabled: Boolean(sessionId),
     staleTime: 5 * 1000,
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return isPipelineActive(status) ? PIPELINE_POLL_MS : false;
-    },
+    refetchInterval: (query) =>
+      shouldPollSessionDetail(query.state.data) ? PIPELINE_POLL_MS : false,
   });
 };
 

@@ -18,7 +18,13 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { LoadingScreen, ErrorState } from "@/components/ui/EmptyState";
 import { useAiNotes } from "@/hooks/ai-notes/useAiNotes";
+import { useSession } from "@/hooks/sessions/useSession";
 import type { AiNotes, AiNotesMedication } from "@/types/ai-notes.types";
+import {
+  bootstrapManualConsultationDraft,
+  createLocalManualDraft,
+} from "@/utils/consultation-workflow.utils";
+import { canAccessAiNotesWorkflow } from "@/utils/session-status.utils";
 import {
   createEmptyMedication,
   findClinicalCompletenessIssue,
@@ -31,8 +37,19 @@ import { colors, radius, spacing, typography } from "@/theme";
 export default function AiNotesScreen() {
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const insets = useSafeAreaInsets();
-  const { aiNotes, isLoading, isError, refetch, generate, update, isGenerating } =
-    useAiNotes(sessionId);
+  const { data: session } = useSession(sessionId);
+  const {
+    aiNotes,
+    isLoading,
+    isError,
+    refetch,
+    generate,
+    update,
+    isGenerating,
+    workflowEnabled,
+    transcriptReady,
+  } = useAiNotes(sessionId);
+  const [bootstrappingManual, setBootstrappingManual] = useState(false);
   const [draft, setDraft] = useState<AiNotes | null>(null);
   const [highlightMedIndex, setHighlightMedIndex] = useState<number | null>(
     null,
@@ -91,7 +108,20 @@ export default function AiNotesScreen() {
     });
   }, [aiNotes]);
 
-  if (isLoading || isGenerating) {
+  if (!workflowEnabled && !canAccessAiNotesWorkflow(session)) {
+    return (
+      <View style={styles.screen}>
+        <GlassHeader title="AI Notes" showBack />
+        <View style={styles.center}>
+          <Text style={styles.waitHint}>
+            Finish upload and processing before editing notes.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (isLoading || (isGenerating && transcriptReady && !draft)) {
     return <LoadingScreen message="Generating AI notes…" />;
   }
 
@@ -100,12 +130,34 @@ export default function AiNotesScreen() {
   if (!draft) {
     return (
       <View style={styles.screen}>
-        <GlassHeader title="AI Notes" showBack />
+        <GlassHeader title="Clinical Notes" showBack />
         <View style={styles.center}>
           <Button
             title="Generate AI Notes"
             loading={generate.isPending}
             onPress={() => generate.mutate(false)}
+          />
+          <View style={styles.manualGap} />
+          <Button
+            title="Write notes manually (no AI)"
+            variant="outline"
+            loading={bootstrappingManual}
+            onPress={async () => {
+              if (!sessionId) return;
+              try {
+                setBootstrappingManual(true);
+                await bootstrapManualConsultationDraft(sessionId);
+                await refetch();
+                setDraft(createLocalManualDraft());
+              } catch (error) {
+                Alert.alert(
+                  "Could not start manual draft",
+                  getApiErrorMessage(error, "Try again."),
+                );
+              } finally {
+                setBootstrappingManual(false);
+              }
+            }}
           />
         </View>
       </View>
@@ -435,6 +487,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   content: { padding: spacing.xl, gap: spacing.md },
   center: { flex: 1, justifyContent: "center", padding: spacing.xl },
+  manualGap: { height: spacing.md },
+  waitHint: { ...typography.body, color: colors.muted, textAlign: "center" },
   sectionTitle: {
     ...typography.heading,
     color: colors.foreground,

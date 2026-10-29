@@ -23,7 +23,10 @@ export interface TranscriptMetadata {
   isMixedLanguage: boolean;
   averageConfidence: number;
   model: string;
+  startedAt?: string;
+  completedAt?: string;
   processedAt?: string;
+  processingDurationSeconds?: number;
   translationLanguage?: string;
   status: TranscriptProcessingStatus;
   error?: string;

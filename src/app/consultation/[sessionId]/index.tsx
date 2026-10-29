@@ -91,6 +91,9 @@ export default function PatientDetailsScreen() {
     ) {
       return "View Transcript";
     }
+    if (session.status === "ready_for_review") {
+      return "Review Notes & Prescription";
+    }
     if (
       isReviewReady(session.status) &&
       !isConsultationCompleted(session.status)

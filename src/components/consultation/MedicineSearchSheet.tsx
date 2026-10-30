@@ -66,9 +66,11 @@ export function MedicineSearchSheet({
   }, [query, visible, organizationId]);
 
   const emptyHint = useMemo(() => {
-    if (!query.trim()) return "Search your organization formulary";
+    if (!query.trim()) {
+      return "Search by medicine name or symptom (e.g. fever, headache)";
+    }
     if (loading) return "Searching…";
-    return "No medicines found";
+    return `No medicines found for "${query.trim()}"`;
   }, [query, loading]);
 
   const pickMedicine = (medicine: MedicineSearchResult) => {
@@ -95,7 +97,7 @@ export function MedicineSearchSheet({
           <SearchInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search medicines…"
+            placeholder="Medicine, condition, or symptom…"
             autoFocus
           />
         </View>
@@ -117,6 +119,18 @@ export function MedicineSearchSheet({
                   .filter(Boolean)
                   .join(" · ")}
               </Text>
+              {item.matchedConditions?.length ? (
+                <Text style={styles.matchLine} numberOfLines={2}>
+                  Matched: {item.matchedConditions.join(", ")}
+                </Text>
+              ) : item.indications?.length ? (
+                <Text style={styles.indicationLine} numberOfLines={2}>
+                  {item.indications
+                    .slice(0, 2)
+                    .map((ind) => ind.name)
+                    .join(" · ")}
+                </Text>
+              ) : null}
             </Pressable>
           )}
         />
@@ -159,6 +173,16 @@ const styles = StyleSheet.create({
   },
   rowName: { ...typography.bodyMedium, color: colors.foreground },
   rowMeta: { ...typography.caption, color: colors.muted, marginTop: 2 },
+  matchLine: {
+    ...typography.caption,
+    color: colors.primary,
+    marginTop: 4,
+  },
+  indicationLine: {
+    ...typography.caption,
+    color: colors.mutedLight,
+    marginTop: 4,
+  },
   footer: {
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.md,

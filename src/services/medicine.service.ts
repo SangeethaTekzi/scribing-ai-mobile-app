@@ -28,6 +28,7 @@ export const medicineService = {
   },
 
   search: async (query: string, organizationId?: string) => {
+    // Symptom / indication matching is handled server-side (GET /medicines/search).
     const response = await api.get("/medicines/search", {
       params: { query, organizationId },
     });

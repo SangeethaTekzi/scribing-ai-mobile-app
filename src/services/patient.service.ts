@@ -4,6 +4,7 @@ import {
   Patient,
   UpdatePatientData,
 } from "@/types/patient.types";
+import type { PreviousHistoryItem } from "@/types/session.types";
 
 export const patientService = {
   getAll: async (params?: {
@@ -30,6 +31,17 @@ export const patientService = {
   getById: async (id: string): Promise<Patient> => {
     const response = await api.get(`/patients/${id}`);
     return response.data.data;
+  },
+
+  getPreviousHistory: async (
+    patientId: string,
+    params?: { excludeSessionId?: string; limit?: number },
+  ): Promise<PreviousHistoryItem[]> => {
+    const response = await api.get(
+      `/patients/${encodeURIComponent(patientId)}/previous-history`,
+      { params },
+    );
+    return (response.data?.data || []) as PreviousHistoryItem[];
   },
 
   create: async (data: CreatePatientData): Promise<Patient> => {

@@ -40,6 +40,9 @@ import {
 } from "@/utils/navigation.utils";
 import { SESSION_STATUS_COLORS, SESSION_STATUS_LABELS } from "@/constants/status";
 import { formatDate } from "@/utils/date.utils";
+import {
+  formatHistoryMedicationLine,
+} from "@/utils/previous-history.utils";
 import { getSessionDepartmentName } from "@/types/session.types";
 import { colors, spacing, typography } from "@/theme";
 
@@ -259,7 +262,15 @@ export default function PatientDetailsScreen() {
           {(session.previousHistory || []).length === 0 ? (
             <Text style={styles.empty}>No previous visits</Text>
           ) : (
-            session.previousHistory!.slice(0, 3).map((item) => (
+            session.previousHistory!.slice(0, 3).map((item) => {
+              const visitMeds = (item.aiNotes?.medications || [])
+                .map(formatHistoryMedicationLine)
+                .filter(Boolean);
+              const detail =
+                item.aiNotes?.assessment?.trim() ||
+                item.aiNotes?.subjective?.trim() ||
+                item.aiNotes?.summary?.trim();
+              return (
               <Card
                 key={item.sessionId}
                 style={styles.historyCard}
@@ -269,13 +280,19 @@ export default function PatientDetailsScreen() {
                 <Text style={styles.historyDate}>
                   {formatDate(item.completedAt)}
                 </Text>
-                {item.aiNotes?.assessment ? (
+                {detail ? (
                   <Text style={styles.historyBody} numberOfLines={2}>
-                    {item.aiNotes.assessment}
+                    {detail}
+                  </Text>
+                ) : null}
+                {visitMeds.length ? (
+                  <Text style={styles.historyBody} numberOfLines={2}>
+                    Rx: {visitMeds.join(" · ")}
                   </Text>
                 ) : null}
               </Card>
-            ))
+            );
+            })
           )}
         </Section>
       </ScrollView>

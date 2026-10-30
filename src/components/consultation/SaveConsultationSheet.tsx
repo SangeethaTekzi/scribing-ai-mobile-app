@@ -12,6 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { Button } from "@/components/ui/Button";
 import { encounterService } from "@/services/encounter.service";
+import { sessionService } from "@/services/session.service";
 import { sessionKeys } from "@/services/query-keys";
 import type { DispositionType } from "@/types/encounter.types";
 import type { Session } from "@/types/session.types";
@@ -108,6 +109,14 @@ export function SaveConsultationSheet({
         await encounterService.dischargePatient(sessionId, {
           disposition: "home",
         });
+        await invalidate();
+        onClose();
+        onCompleted();
+        return;
+      }
+
+      if (ipAction === "finish") {
+        await sessionService.updateStatus(sessionId, "completed");
         await invalidate();
         onClose();
         onCompleted();

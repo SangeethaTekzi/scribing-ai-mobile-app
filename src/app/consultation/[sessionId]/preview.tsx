@@ -24,6 +24,7 @@ import { VoiceEditReviewSheet } from "@/components/ai-notes/VoiceEditReviewSheet
 import { useSession } from "@/hooks/sessions/useSession";
 import { useAiNotes } from "@/hooks/ai-notes/useAiNotes";
 import { aiNotesKeys, sessionKeys } from "@/services/query-keys";
+import { sessionService } from "@/services/session.service";
 import { SessionSmsPanel } from "@/components/consultation/SessionSmsPanel";
 import { SessionRecordingPlayer } from "@/components/consultation/SessionRecordingPlayer";
 import { SaveConsultationSheet } from "@/components/consultation/SaveConsultationSheet";
@@ -177,6 +178,12 @@ export default function PreviewScreen() {
           }
         }
       }
+
+      await sessionService.updateStatus(sessionId, "completed");
+      await queryClient.invalidateQueries({
+        queryKey: sessionKeys.detail(sessionId),
+      });
+      await queryClient.invalidateQueries({ queryKey: sessionKeys.lists() });
 
       setSaveSheetOpen(true);
     } catch (error) {

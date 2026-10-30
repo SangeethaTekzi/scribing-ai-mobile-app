@@ -1,5 +1,6 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -25,6 +26,14 @@ import { getDoctorWorkspacePath } from "@/utils/doctor-navigation.utils";
 import { colors, spacing, typography } from "@/theme";
 import type { Patient } from "@/types/patient.types";
 import type { PreviousHistoryItem } from "@/types/session.types";
+import {
+  briefVisitAsList,
+  buildBriefVisitHistory,
+  buildPriorVisitHighlights,
+  extractMedicationLinesFromHistory,
+  formatHistoryMedicationLine,
+  resolveActiveBriefVisit,
+} from "@/utils/previous-history.utils";
 
 const splitBullets = (text?: string) =>
   (text || "")
@@ -46,26 +55,19 @@ const formatVisitDate = (value?: string | null) => {
 };
 
 const buildWhatChanged = (
-  history: PreviousHistoryItem[],
+  activeVisit: PreviousHistoryItem | null,
   patient: Patient | null,
+  totalVisits: number,
 ) => {
-  const bullets: string[] = [];
-  const latest = history[0];
-
-  if (latest?.aiNotes?.assessment?.trim()) {
-    bullets.push(...splitBullets(latest.aiNotes.assessment).slice(0, 2));
-  }
-  if (latest?.aiNotes?.summary?.trim()) {
-    bullets.push(latest.aiNotes.summary.trim());
-  }
+  const bullets = buildPriorVisitHighlights(briefVisitAsList(activeVisit));
   if (patient?.allergies?.length) {
     bullets.push(
       `Allergies documented: ${patient.allergies.slice(0, 3).join(", ")}`,
     );
   }
-  if (history.length > 0) {
+  if (totalVisits > 0) {
     bullets.push(
-      `${history.length} prior completed visit${history.length === 1 ? "" : "s"} on record`,
+      `${totalVisits} completed visit${totalVisits === 1 ? "" : "s"} on record`,
     );
   }
   if (!bullets.length) {
@@ -87,7 +89,8 @@ const buildSuggestedAgenda = (history: PreviousHistoryItem[]) => {
 
 const buildActiveProblems = (history: PreviousHistoryItem[]) => {
   const assessment = history[0]?.aiNotes?.assessment;
-  const items = splitBullets(assessment);
+  const subjective = history[0]?.aiNotes?.subjective;
+  const items = splitBullets(assessment || subjective);
   if (items.length) return items.slice(0, 4);
   return ["No active problems documented from prior visits."];
 };
@@ -104,17 +107,55 @@ export default function ConsultationBriefScreen() {
       : null;
   }, [session]);
 
-  const history = session?.previousHistory || [];
+  const { displayVisits, highlightVisits } = useMemo(
+    () => buildBriefVisitHistory(session ?? null, session?.previousHistory),
+    [session],
+  );
+
+  const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedVisitId(null);
+  }, [sessionId, displayVisits.length]);
+
+  const { activeVisit, defaultVisitId, isLatestPriorVisit } = useMemo(
+    () =>
+      resolveActiveBriefVisit(
+        displayVisits,
+        highlightVisits,
+        selectedVisitId,
+      ),
+    [displayVisits, highlightVisits, selectedVisitId],
+  );
+
+  const activeVisitList = useMemo(
+    () => briefVisitAsList(activeVisit),
+    [activeVisit],
+  );
+
+  const summarySectionTitle = isLatestPriorVisit
+    ? "What changed since last visit"
+    : activeVisit
+      ? `Visit summary · ${formatVisitDate(activeVisit.completedAt)}`
+      : "What changed since last visit";
+
   const whatChanged = useMemo(
-    () => buildWhatChanged(history, patient),
-    [history, patient],
+    () => buildWhatChanged(activeVisit, patient, displayVisits.length),
+    [activeVisit, patient, displayVisits.length],
   );
-  const agenda = useMemo(() => buildSuggestedAgenda(history), [history]);
+  const agenda = useMemo(
+    () => buildSuggestedAgenda(activeVisitList),
+    [activeVisitList],
+  );
   const activeProblems = useMemo(
-    () => buildActiveProblems(history),
-    [history],
+    () => buildActiveProblems(activeVisitList),
+    [activeVisitList],
   );
-  const medications = useMemo(() => getHomeMedications(patient), [patient]);
+  const medications = useMemo(() => {
+    const profileMeds = getHomeMedications(patient);
+    if (profileMeds.length) return profileMeds;
+    return extractMedicationLinesFromHistory(activeVisitList);
+  }, [activeVisitList, patient]);
   const allergies = patient?.allergies?.filter(Boolean) || [];
 
   if (isLoading) return <LoadingScreen message="Loading pre-visit brief…" />;
@@ -155,12 +196,15 @@ export default function ConsultationBriefScreen() {
             </View>
           </View>
           <Text style={styles.hint}>
-            Built from {history.length} past visit
-            {history.length === 1 ? "" : "s"}
+            Built from {displayVisits.length} past visit
+            {displayVisits.length === 1 ? "" : "s"}
+            {activeVisit && !isLatestPriorVisit
+              ? ` · Reviewing ${formatVisitDate(activeVisit.completedAt)}`
+              : ""}
           </Text>
         </Card>
 
-        <Section title="What changed since last visit" bullets={whatChanged} />
+        <Section title={summarySectionTitle} bullets={whatChanged} />
         <AgendaSection items={agenda} />
 
         <Card style={styles.card}>
@@ -195,15 +239,33 @@ export default function ConsultationBriefScreen() {
             <Text style={styles.sectionTitle}>Visit history</Text>
             <View style={styles.countBadge}>
               <Text style={styles.countBadgeText}>
-                {history.length} visit{history.length === 1 ? "" : "s"}
+                {displayVisits.length} visit{displayVisits.length === 1 ? "" : "s"}
               </Text>
             </View>
           </View>
-          {history.length === 0 ? (
+          {displayVisits.length === 0 ? (
             <Text style={styles.emptyHint}>No completed visit history yet.</Text>
           ) : (
-            history.map((visit) => (
-              <View key={visit.sessionId} style={styles.visitRow}>
+            <>
+              <Text style={styles.visitTapHint}>
+                Tap a visit to load its summary in this brief. Default is the
+                most recent visit.
+              </Text>
+            {displayVisits.map((visit) => {
+              const visitMeds = (visit.aiNotes?.medications || [])
+                .map(formatHistoryMedicationLine)
+                .filter(Boolean);
+              const isSelected =
+                (selectedVisitId ?? defaultVisitId) === visit.sessionId;
+              return (
+              <Pressable
+                key={visit.sessionId}
+                onPress={() => setSelectedVisitId(visit.sessionId)}
+                style={[
+                  styles.visitRow,
+                  isSelected && styles.visitRowSelected,
+                ]}
+              >
                 <View style={styles.visitMain}>
                   <Text style={styles.visitDate}>
                     {formatVisitDate(visit.completedAt)}
@@ -211,15 +273,37 @@ export default function ConsultationBriefScreen() {
                   <Text style={styles.visitTitle}>
                     {visit.title || "Consultation"}
                   </Text>
-                  {visit.aiNotes?.summary ? (
+                  {visit.aiNotes?.assessment ? (
+                    <Text style={styles.visitSummary} numberOfLines={2}>
+                      {visit.aiNotes.assessment}
+                    </Text>
+                  ) : visit.aiNotes?.subjective ? (
+                    <Text style={styles.visitSummary} numberOfLines={2}>
+                      {visit.aiNotes.subjective}
+                    </Text>
+                  ) : visit.aiNotes?.summary ? (
                     <Text style={styles.visitSummary} numberOfLines={2}>
                       {visit.aiNotes.summary}
                     </Text>
                   ) : null}
+                  {visitMeds.length ? (
+                    <Text style={styles.visitMeds} numberOfLines={3}>
+                      Rx: {visitMeds.join(" · ")}
+                    </Text>
+                  ) : null}
                 </View>
-                <Text style={styles.signedBadge}>Signed</Text>
-              </View>
-            ))
+                <Text
+                  style={[
+                    styles.signedBadge,
+                    isSelected && styles.selectedBadge,
+                  ]}
+                >
+                  {isSelected ? "Selected" : "Signed"}
+                </Text>
+              </Pressable>
+            );
+            })}
+            </>
           )}
         </Card>
 
@@ -365,6 +449,11 @@ const styles = StyleSheet.create({
   },
   allergyText: { ...typography.body, color: colors.danger },
   emptyHint: { ...typography.body, color: colors.muted },
+  visitTapHint: {
+    ...typography.caption,
+    color: colors.muted,
+    marginBottom: spacing.xs,
+  },
   countBadge: {
     backgroundColor: colors.primaryLight,
     paddingHorizontal: spacing.sm,
@@ -381,14 +470,22 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginTop: spacing.sm,
   },
+  visitRowSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+  },
   visitMain: { flex: 1, minWidth: 0 },
   visitDate: { ...typography.bodyMedium, color: colors.foreground },
   visitTitle: { ...typography.caption, color: colors.muted },
   visitSummary: { ...typography.caption, color: colors.muted, marginTop: 4 },
+  visitMeds: { ...typography.caption, color: colors.foreground, marginTop: 4 },
   signedBadge: {
     ...typography.caption,
     color: "#047857",
     alignSelf: "flex-start",
+  },
+  selectedBadge: {
+    color: colors.primary,
   },
   medLine: { ...typography.body, color: colors.foreground, lineHeight: 22 },
   footer: {

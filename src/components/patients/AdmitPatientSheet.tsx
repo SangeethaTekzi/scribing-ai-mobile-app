@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, StyleSheet, Switch, Text, View } from "react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { BottomSheet } from "@/components/ui/BottomSheet";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { encounterService } from "@/services/encounter.service";
 import { sessionKeys } from "@/services/query-keys";
 import { useAuthStore } from "@/store/auth.store";
+import { formatDateTimeLocalInput, parseDateTimeLocalInput } from "@/utils/datetime.utils";
 import { colors, spacing, typography } from "@/theme";
 
 interface AdmitPatientSheetProps {
@@ -26,16 +27,27 @@ export function AdmitPatientSheet({
   const [bed, setBed] = useState("");
   const [reason, setReason] = useState("");
   const [isEmergency, setIsEmergency] = useState(false);
+  const [admittedAtLocal, setAdmittedAtLocal] = useState(() =>
+    formatDateTimeLocalInput(),
+  );
+
+  useEffect(() => {
+    if (!visible) return;
+    setAdmittedAtLocal(formatDateTimeLocalInput());
+  }, [visible]);
 
   const admitMutation = useMutation({
-    mutationFn: () =>
-      encounterService.admitPatient(sessionId, {
+    mutationFn: () => {
+      const parsed = parseDateTimeLocalInput(admittedAtLocal);
+      return encounterService.admitPatient(sessionId, {
         ward: ward.trim(),
         bed: bed.trim(),
         reason: reason.trim() || undefined,
         attendingDoctorId: String(user?.id || user?._id || ""),
+        admittedAt: (parsed ?? new Date()).toISOString(),
         isEmergency,
-      }),
+      });
+    },
     onSuccess: async () => {
       onClose();
       setWard("");
@@ -85,6 +97,13 @@ export function AdmitPatientSheet({
           label="Reason (optional)"
           value={reason}
           onChangeText={setReason}
+        />
+        <Input
+          label="Admission date & time"
+          value={admittedAtLocal}
+          onChangeText={setAdmittedAtLocal}
+          placeholder="YYYY-MM-DDTHH:mm"
+          hint="Local date and time (defaults to now when opened)"
         />
         <View style={styles.switchRow}>
           <Text style={styles.switchLabel}>Emergency admission</Text>

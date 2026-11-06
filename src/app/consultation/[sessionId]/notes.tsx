@@ -27,11 +27,15 @@ import {
 import { canAccessAiNotesWorkflow } from "@/utils/session-status.utils";
 import {
   createEmptyMedication,
+  createOutOfStoreMedicationFromShorthand,
   findClinicalCompletenessIssue,
+  formatMedicationDuplicateLabel,
   getApiErrorMessage,
   normalizeMedicationsForEditing,
+  wouldBlockPrescriptionMedicationAdd,
 } from "@/utils/prescriptionMedication.utils";
 import { MedicineSearchSheet } from "@/components/consultation/MedicineSearchSheet";
+import { OutOfStoreMedicineInput } from "@/components/consultation/OutOfStoreMedicineInput";
 import { colors, radius, spacing, typography } from "@/theme";
 
 export default function AiNotesScreen() {
@@ -168,8 +172,28 @@ export default function AiNotesScreen() {
     setDraft((prev) => (prev ? { ...prev, [key]: value } : prev));
   };
 
-  const addMedication = (medication: AiNotesMedication) => {
+  const addCatalogMedication = (medication: AiNotesMedication) => {
     setHighlightMedIndex(null);
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const existing = prev.medications || [];
+      if (wouldBlockPrescriptionMedicationAdd(medication, existing)) {
+        Alert.alert(
+          "Already on prescription",
+          formatMedicationDuplicateLabel(medication),
+        );
+        return prev;
+      }
+      return {
+        ...prev,
+        medications: [...existing, medication],
+      };
+    });
+  };
+
+  const addOutOfStoreMedication = (line: string) => {
+    setHighlightMedIndex(null);
+    const medication = createOutOfStoreMedicationFromShorthand(line);
     setDraft((prev) =>
       prev
         ? {
@@ -179,6 +203,15 @@ export default function AiNotesScreen() {
         : prev,
     );
   };
+
+  const addBlankMedicationRow = () => {
+    addCatalogMedication(createEmptyMedication());
+  };
+
+  const excludedCatalogMedicineIds =
+    draft.medications
+      ?.map((med) => med.medicineId || "")
+      .filter(Boolean) || [];
 
   const removeMedication = (index: number) => {
     setHighlightMedIndex(null);
@@ -295,14 +328,15 @@ export default function AiNotesScreen() {
               variant="outline"
               size="sm"
               fullWidth={false}
-              onPress={() => addMedication(createEmptyMedication())}
+              onPress={addBlankMedicationRow}
             />
           </View>
         </View>
+        <OutOfStoreMedicineInput onSubmitLine={addOutOfStoreMedication} />
         {(draft.medications || []).length === 0 ? (
           <Text style={styles.empty}>
-            No medicines yet. Search the catalog or add a row to type a
-            prescription.
+            No medicines yet. Type a shorthand line above, search the catalog,
+            or add a blank row.
           </Text>
         ) : (
           draft.medications!.map((med, index) => (
@@ -370,7 +404,9 @@ export default function AiNotesScreen() {
       <MedicineSearchSheet
         visible={medicineSheetOpen}
         onClose={() => setMedicineSheetOpen(false)}
-        onSelect={addMedication}
+        onSelectCatalog={addCatalogMedication}
+        onAddOutOfStoreLine={addOutOfStoreMedication}
+        excludedMedicineIds={excludedCatalogMedicineIds}
       />
     </View>
   );
@@ -420,13 +456,18 @@ function MedicationEditor({
       elevated={false}
     >
       <View style={styles.medNameRow}>
-        <TextInput
-          value={medication.medicine}
-          onChangeText={(medicine) => onChange({ ...medication, medicine })}
-          style={[styles.medName, { flex: 1 }]}
-          placeholder="Medicine name"
-          placeholderTextColor={colors.mutedLight}
-        />
+        <View style={{ flex: 1, gap: 4 }}>
+          {medication.isExternalSupply ? (
+            <Text style={styles.outOfStoreTag}>Out of store</Text>
+          ) : null}
+          <TextInput
+            value={medication.medicine}
+            onChangeText={(medicine) => onChange({ ...medication, medicine })}
+            style={styles.medName}
+            placeholder="Medicine name"
+            placeholderTextColor={colors.mutedLight}
+          />
+        </View>
         {onRemove ? (
           <Pressable onPress={onRemove} hitSlop={8} style={styles.removeMed}>
             <Text style={styles.removeMedText}>Remove</Text>
@@ -537,6 +578,13 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.danger,
     fontWeight: "600",
+  },
+  outOfStoreTag: {
+    ...typography.caption,
+    color: colors.primary,
+    fontWeight: "700",
+    fontSize: 10,
+    textTransform: "uppercase",
   },
   medName: {
     ...typography.bodyMedium,

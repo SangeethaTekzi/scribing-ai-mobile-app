@@ -1,4 +1,8 @@
 import type { AiNotesMedication } from "@/types/ai-notes.types";
+import type { MedicineSearchResult } from "@/types/medicine.types";
+
+export const normalizeCatalogToken = (value: string) =>
+  value.trim().toLowerCase().replace(/\s+/g, " ");
 
 export const createEmptyMedication = (): AiNotesMedication => ({
   medicine: "",
@@ -8,6 +12,179 @@ export const createEmptyMedication = (): AiNotesMedication => ({
   days: "",
   instructions: "",
 });
+
+/** Free-text / out-of-store row: never link to formulary or catalog pricing. */
+export const prepareExternalSupplyMedication = (
+  medication: AiNotesMedication,
+): AiNotesMedication => {
+  const line = medication.medicine?.trim() || "";
+  return {
+    ...medication,
+    medicine: line,
+    isExternalSupply: true,
+    medicineId: undefined,
+    medicineNameSnapshot: undefined,
+    brandNameSnapshot: undefined,
+    catalogCostPreview: undefined,
+    priceAtPrescription: undefined,
+  };
+};
+
+export const medicationFromFormulary = (
+  medicine: MedicineSearchResult,
+): AiNotesMedication => {
+  const id = String(medicine.id || medicine._id || "").trim();
+  return {
+    ...createEmptyMedication(),
+    medicine: medicine.strength
+      ? `${medicine.name} ${medicine.strength}`.trim()
+      : medicine.name,
+    medicineId: id || undefined,
+    medicineNameSnapshot: medicine.name,
+    strengthSnapshot: medicine.strength || "",
+    brandNameSnapshot: medicine.brandName || "",
+    formSnapshot: medicine.form || "Tablet",
+    catalogCostPreview: medicine.cost,
+    morning: "1",
+    afternoon: "0",
+    night: "0",
+    days: "5",
+    instructions: "After food",
+  };
+};
+
+export const createOutOfStoreMedicationFromShorthand = (
+  value: string,
+): AiNotesMedication => {
+  const line = value.trim();
+  const schedule = parseManScheduleFromText(line);
+  const daysMatch = line.match(/(\d+)\s*d(?:ays?)?/i);
+  const instructions = /bf|before food/i.test(line)
+    ? "Before food"
+    : /af|after food/i.test(line)
+      ? "After food"
+      : "After food";
+
+  return prepareExternalSupplyMedication({
+    ...createEmptyMedication(),
+    medicine: line,
+    formSnapshot: "Tablet",
+    morning: schedule?.morning ?? "1",
+    afternoon: schedule?.afternoon ?? "0",
+    night: schedule?.night ?? "0",
+    days: daysMatch?.[1] ?? "5",
+    instructions,
+  });
+};
+
+export const formatMedicationDuplicateLabel = (
+  med: Pick<
+    AiNotesMedication,
+    "medicine" | "medicineNameSnapshot" | "strengthSnapshot"
+  >,
+): string => {
+  const name = (med.medicineNameSnapshot || med.medicine || "Medication").trim();
+  const strength = med.strengthSnapshot?.trim();
+  return strength ? `${name} ${strength}` : name;
+};
+
+const getMedicationDuplicateKeys = (
+  med: Pick<
+    AiNotesMedication,
+    | "medicineId"
+    | "medicineNameSnapshot"
+    | "medicine"
+    | "strengthSnapshot"
+    | "isExternalSupply"
+  >,
+): Set<string> => {
+  if (med.isExternalSupply) {
+    const line = normalizeCatalogToken(med.medicine || "");
+    return line ? new Set([`ext:${line}`]) : new Set();
+  }
+
+  const keys = new Set<string>();
+  const medicineId = med.medicineId?.trim() || "";
+  const name = normalizeCatalogToken(
+    med.medicineNameSnapshot || med.medicine || "",
+  );
+  const strength = normalizeCatalogToken(med.strengthSnapshot || "");
+
+  if (medicineId) {
+    keys.add(`id:${medicineId}`);
+  }
+  if (name && strength) {
+    keys.add(`ns:${name}::${strength}`);
+    keys.add(`full:${normalizeCatalogToken(`${name} ${strength}`)}`);
+  } else if (name) {
+    keys.add(`full:${name}`);
+  }
+
+  const medicineField = normalizeCatalogToken(med.medicine || "");
+  if (medicineField) {
+    keys.add(`full:${medicineField}`);
+  }
+
+  return keys;
+};
+
+export const medicationsAreDuplicates = (
+  left: Pick<
+    AiNotesMedication,
+    | "medicineId"
+    | "medicineNameSnapshot"
+    | "medicine"
+    | "strengthSnapshot"
+    | "isExternalSupply"
+  >,
+  right: Pick<
+    AiNotesMedication,
+    | "medicineId"
+    | "medicineNameSnapshot"
+    | "medicine"
+    | "strengthSnapshot"
+    | "isExternalSupply"
+  >,
+): boolean => {
+  const leftExternal = Boolean(left.isExternalSupply);
+  const rightExternal = Boolean(right.isExternalSupply);
+  if (leftExternal !== rightExternal) {
+    return false;
+  }
+  if (leftExternal && rightExternal) {
+    return (
+      normalizeCatalogToken(left.medicine || "") ===
+      normalizeCatalogToken(right.medicine || "")
+    );
+  }
+
+  const leftKeys = getMedicationDuplicateKeys(left);
+  const rightKeys = getMedicationDuplicateKeys(right);
+  for (const key of leftKeys) {
+    if (rightKeys.has(key)) return true;
+  }
+  return false;
+};
+
+export const wouldDuplicateMedication = (
+  candidate: AiNotesMedication,
+  existing: AiNotesMedication[],
+): boolean =>
+  existing.some((row) => medicationsAreDuplicates(candidate, row));
+
+/** Catalog/search adds only; out-of-store free-text is never blocked on add. */
+export const wouldBlockPrescriptionMedicationAdd = (
+  candidate: AiNotesMedication,
+  existing: AiNotesMedication[],
+): boolean => {
+  if (!candidate.medicine?.trim()) {
+    return true;
+  }
+  if (candidate.isExternalSupply) {
+    return false;
+  }
+  return wouldDuplicateMedication(candidate, existing);
+};
 
 export const PRESCRIPTION_DAYS_MAX = 365;
 

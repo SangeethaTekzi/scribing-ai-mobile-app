@@ -70,6 +70,34 @@ export function ConsultationRecordingControls({
     }
   };
 
+  const handlePause = async () => {
+    try {
+      setBusy(true);
+      await pause();
+    } catch (error: unknown) {
+      Alert.alert(
+        "Pause failed",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResume = async () => {
+    try {
+      setBusy(true);
+      await resume();
+    } catch (error: unknown) {
+      Alert.alert(
+        "Resume failed",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleStop = async () => {
     try {
       setBusy(true);
@@ -132,14 +160,25 @@ export function ConsultationRecordingControls({
           />
         ) : (
           <>
-            <ControlButton
-              icon={isPaused ? "play" : "pause"}
-              label={isPaused ? "Resume" : "Pause"}
-              color={colors.primary}
-              onPress={isPaused ? resume : pause}
-              disabled={busy}
-              compact={compact}
-            />
+            {isPaused ? (
+              <ControlButton
+                icon="play"
+                label="Resume"
+                color={colors.success}
+                onPress={handleResume}
+                disabled={busy}
+                compact={compact}
+              />
+            ) : (
+              <ControlButton
+                icon="pause"
+                label="Pause"
+                color={colors.primary}
+                onPress={handlePause}
+                disabled={busy}
+                compact={compact}
+              />
+            )}
             <ControlButton
               icon="stop"
               label="Stop"
@@ -151,6 +190,16 @@ export function ConsultationRecordingControls({
           </>
         )}
       </View>
+
+      {!compact ? (
+        <Text style={styles.hint}>
+          {state === "idle" || state === "stopped"
+            ? "Start when ready. Pause or stop anytime while recording."
+            : isPaused
+              ? "Recording paused. Resume or stop when ready."
+              : "Transcript appears after you stop and upload finishes."}
+        </Text>
+      ) : null}
 
       {compact ? (
         <Pressable
@@ -275,5 +324,12 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.primary,
     fontWeight: "600",
+  },
+  hint: {
+    ...typography.caption,
+    color: colors.muted,
+    textAlign: "center",
+    maxWidth: 320,
+    lineHeight: 18,
   },
 });

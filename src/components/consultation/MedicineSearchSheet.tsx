@@ -15,19 +15,26 @@ import { medicineService } from "@/services/medicine.service";
 import { useTenantScope } from "@/hooks/useTenantScope";
 import type { MedicineSearchResult } from "@/types/medicine.types";
 import type { AiNotesMedication } from "@/types/ai-notes.types";
-import { createEmptyMedication } from "@/utils/prescriptionMedication.utils";
+import {
+  createEmptyMedication,
+  medicationFromFormulary,
+} from "@/utils/prescriptionMedication.utils";
 import { colors, spacing, typography } from "@/theme";
 
 interface MedicineSearchSheetProps {
   visible: boolean;
   onClose: () => void;
-  onSelect: (medication: AiNotesMedication) => void;
+  onSelectCatalog: (medication: AiNotesMedication) => void;
+  onAddOutOfStoreLine?: (line: string) => void;
+  excludedMedicineIds?: string[];
 }
 
 export function MedicineSearchSheet({
   visible,
   onClose,
-  onSelect,
+  onSelectCatalog,
+  onAddOutOfStoreLine,
+  excludedMedicineIds = [],
 }: MedicineSearchSheetProps) {
   const insets = useSafeAreaInsets();
   const { organizationId } = useTenantScope();
@@ -73,14 +80,16 @@ export function MedicineSearchSheet({
     return `No medicines found for "${query.trim()}"`;
   }, [query, loading]);
 
-  const pickMedicine = (medicine: MedicineSearchResult) => {
-    const displayName = medicine.strength
-      ? `${medicine.name} ${medicine.strength}`.trim()
-      : medicine.name;
-    onSelect({
-      ...createEmptyMedication(),
-      medicine: displayName,
+  const filteredResults = useMemo(() => {
+    const excluded = new Set(excludedMedicineIds.filter(Boolean));
+    return results.filter((item) => {
+      const id = String(item.id || item._id || "");
+      return !excluded.has(id);
     });
+  }, [excludedMedicineIds, results]);
+
+  const pickMedicine = (medicine: MedicineSearchResult) => {
+    onSelectCatalog(medicationFromFormulary(medicine));
     onClose();
   };
 
@@ -102,7 +111,7 @@ export function MedicineSearchSheet({
           />
         </View>
         <FlatList
-          data={results}
+          data={filteredResults}
           keyExtractor={(item) => String(item.id || item._id || item.name)}
           contentContainerStyle={{
             paddingHorizontal: spacing.xl,
@@ -135,11 +144,21 @@ export function MedicineSearchSheet({
           )}
         />
         <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
+          {query.trim().length >= 1 && onAddOutOfStoreLine ? (
+            <Button
+              title={`Add "${query.trim()}" (out of store)`}
+              variant="outline"
+              onPress={() => {
+                onAddOutOfStoreLine(query.trim());
+                onClose();
+              }}
+            />
+          ) : null}
           <Button
             title="Add blank row"
             variant="outline"
             onPress={() => {
-              onSelect(createEmptyMedication());
+              onSelectCatalog(createEmptyMedication());
               onClose();
             }}
           />
@@ -188,5 +207,6 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.borderLight,
+    gap: spacing.sm,
   },
 });

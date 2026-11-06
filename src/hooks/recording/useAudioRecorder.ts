@@ -81,17 +81,40 @@ export const useAudioRecorder = (sessionId: string) => {
 
   const pause = useCallback(async () => {
     if (useRecordingStore.getState().state !== "recording") return;
-    recorder.pause();
+    try {
+      recorder.pause();
+    } catch {
+      throw new Error("Could not pause recording on this device.");
+    }
     clearTimer();
     setState("paused");
-  }, [recorder, setState]);
+    try {
+      await recordingService.pause(sessionId);
+    } catch {
+      // local pause still applies
+    }
+  }, [recorder, sessionId, setState]);
 
   const resume = useCallback(async () => {
     if (useRecordingStore.getState().state !== "paused") return;
-    recorder.record();
+    try {
+      recorder.record();
+    } catch {
+      throw new Error("Could not resume recording.");
+    }
     setState("recording");
     startTimer();
-  }, [recorder, setState]);
+    const elapsedSeconds = useRecordingStore.getState().elapsedSeconds;
+    try {
+      await recordingService.resume(sessionId);
+      await recordingService.autosave(sessionId, {
+        recordingStatus: "recording",
+        elapsedSeconds,
+      });
+    } catch {
+      // local resume still applies
+    }
+  }, [recorder, sessionId, setState]);
 
   const stop = useCallback(async () => {
     const snap = useRecordingStore.getState();

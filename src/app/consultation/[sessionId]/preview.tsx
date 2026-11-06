@@ -36,6 +36,8 @@ import {
 import {
   canAccessAiNotesWorkflow,
   isConsultationCompleted,
+  sessionHasConsultationRecording,
+  CONSULTATION_RECORDING_REQUIRED_MESSAGE,
 } from "@/utils/session-status.utils";
 import {
   getPrescriptionApiErrorMessage,
@@ -156,6 +158,12 @@ export default function PreviewScreen() {
     }
     try {
       setSaving(true);
+
+      if (!sessionHasConsultationRecording(session)) {
+        Alert.alert("Recording required", CONSULTATION_RECORDING_REQUIRED_MESSAGE);
+        return;
+      }
+
       await update.mutateAsync({
         summary: notes.summary,
         subjective: notes.subjective,

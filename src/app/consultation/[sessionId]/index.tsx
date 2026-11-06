@@ -18,6 +18,8 @@ import { SessionRecordingPlayer } from "@/components/consultation/SessionRecordi
 import { ConsultationRecordingControls } from "@/components/consultation/ConsultationRecordingControls";
 import { LoadingScreen, ErrorState } from "@/components/ui/EmptyState";
 import { AdmitPatientSheet } from "@/components/patients/AdmitPatientSheet";
+import { RoundsSheet } from "@/components/consultation/RoundsSheet";
+import { getEncounterType, getIpWorkflowStatusLabel } from "@/utils/encounter.utils";
 import { SessionVitalsInlineGrid } from "@/components/consultation/SessionVitalsInlineGrid";
 import { useSession } from "@/hooks/sessions/useSession";
 import { getPatientFromSession } from "@/hooks/doctor/useDoctorQueue";
@@ -51,6 +53,7 @@ export default function PatientDetailsScreen() {
   const insets = useSafeAreaInsets();
   const { data: session, isLoading, isError, refetch } = useSession(sessionId);
   const [admitOpen, setAdmitOpen] = useState(false);
+  const [roundsOpen, setRoundsOpen] = useState(false);
 
   if (isLoading) return <LoadingScreen message="Loading patient…" />;
   if (isError || !session) {
@@ -71,6 +74,9 @@ export default function PatientDetailsScreen() {
   const age = getPatientAge(patient);
   const statusColors = SESSION_STATUS_COLORS[session.status];
   const canRecord = canStartRecording(session.status);
+  const isIp = getEncounterType(session) === "IP";
+  const ipWorkflowLabel = getIpWorkflowStatusLabel(session);
+  const roundHistory = session.roundHistory || session.admissionTimeline || [];
 
   const handleContinue = () => {
     if (session.status === "created" || session.status === "failed") {
@@ -258,6 +264,37 @@ export default function PatientDetailsScreen() {
           />
         </Section>
 
+        {isIp && ipWorkflowLabel ? (
+          <Section title="Inpatient status">
+            <Card style={styles.workflowCard} elevated={false}>
+              <Text style={styles.workflowText}>{ipWorkflowLabel}</Text>
+            </Card>
+          </Section>
+        ) : null}
+
+        {isIp ? (
+          <Section title="Round history">
+            {roundHistory.length === 0 ? (
+              <Text style={styles.empty}>No rounds recorded yet</Text>
+            ) : (
+              roundHistory.slice(-12).map((item) => (
+                <Card
+                  key={item.roundScheduleId || item.label}
+                  style={styles.historyCard}
+                  elevated={false}
+                >
+                  <Text style={styles.historyTitle}>{item.label}</Text>
+                  <Text style={styles.historyDate}>
+                    {[item.status, item.consultationStatus]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </Text>
+                </Card>
+              ))
+            )}
+          </Section>
+        ) : null}
+
         <Section title="Previous History">
           {(session.previousHistory || []).length === 0 ? (
             <Text style={styles.empty}>No previous visits</Text>
@@ -308,6 +345,13 @@ export default function PatientDetailsScreen() {
             onPress={() => setAdmitOpen(true)}
           />
         ) : null}
+        {isIp ? (
+          <Button
+            title="Today's rounds"
+            variant="outline"
+            onPress={() => setRoundsOpen(true)}
+          />
+        ) : null}
         <Button
           title={continueLabel()}
           onPress={() => {
@@ -336,6 +380,12 @@ export default function PatientDetailsScreen() {
         visible={admitOpen}
         sessionId={sessionId!}
         onClose={() => setAdmitOpen(false)}
+      />
+      <RoundsSheet
+        visible={roundsOpen}
+        sessionId={sessionId!}
+        session={session}
+        onClose={() => setRoundsOpen(false)}
       />
     </View>
   );
@@ -412,6 +462,13 @@ const styles = StyleSheet.create({
     ...typography.caption,
     color: colors.muted,
     marginTop: spacing.xs,
+  },
+  workflowCard: {
+    backgroundColor: colors.primaryLight,
+  },
+  workflowText: {
+    ...typography.body,
+    color: colors.foreground,
   },
   recordingCard: {
     paddingVertical: spacing.sm,

@@ -3,6 +3,7 @@ import { api } from "@/services/api";
 import {
   CompleteRecordingData,
   PlaybackUrlResponse,
+  RecordingAutosaveData,
   UploadUrlResponse,
 } from "@/types/recording.types";
 import { Session } from "@/types/session.types";
@@ -66,6 +67,27 @@ export const resolveAudioUrl = (audioUrl: string): string => {
 export const recordingService = {
   start: async (sessionId: string): Promise<Session> => {
     const response = await api.post(`/sessions/${sessionId}/recording/start`);
+    return response.data.data;
+  },
+
+  pause: async (sessionId: string): Promise<Session> => {
+    const response = await api.post(`/sessions/${sessionId}/recording/pause`);
+    return response.data.data;
+  },
+
+  resume: async (sessionId: string): Promise<Session> => {
+    const response = await api.post(`/sessions/${sessionId}/recording/resume`);
+    return response.data.data;
+  },
+
+  autosave: async (
+    sessionId: string,
+    data: RecordingAutosaveData,
+  ): Promise<Session> => {
+    const response = await api.post(
+      `/sessions/${sessionId}/recording/autosave`,
+      data,
+    );
     return response.data.data;
   },
 

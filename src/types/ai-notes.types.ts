@@ -2,11 +2,21 @@ export type AiNotesStatus = "pending" | "processing" | "completed" | "failed";
 
 export interface AiNotesMedication {
   medicine: string;
+  medicineId?: string;
+  medicineNameSnapshot?: string;
+  strengthSnapshot?: string;
+  brandNameSnapshot?: string;
+  formSnapshot?: string;
+  /** Client-only; not sent on sign. */
+  catalogCostPreview?: number;
+  priceAtPrescription?: number;
   morning?: string;
   afternoon?: string;
   night?: string;
   days?: string;
   instructions?: string;
+  /** Patient-supplied / out-of-store; not linked to formulary. */
+  isExternalSupply?: boolean;
 }
 
 export interface AiNotes {

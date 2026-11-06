@@ -1,4 +1,23 @@
-import React, { useEffect, useState } from "react";
+import { BottomSheet } from "@/components/ui/BottomSheet";
+import { Button } from "@/components/ui/Button";
+import { encounterService } from "@/services/encounter.service";
+import { sessionKeys } from "@/services/query-keys";
+import { sessionService } from "@/services/session.service";
+import { colors, spacing, typography } from "@/theme";
+import type { DispositionType } from "@/types/encounter.types";
+import type { Session } from "@/types/session.types";
+import { getDoctorWorkspacePath } from "@/utils/doctor-navigation.utils";
+import {
+  canStartNextRoundToday,
+  getEncounterType,
+} from "@/utils/encounter.utils";
+import {
+  CONSULTATION_RECORDING_REQUIRED_MESSAGE,
+  sessionHasConsultationRecording,
+} from "@/utils/session-status.utils";
+import { useQueryClient } from "@tanstack/react-query";
+import { router } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -7,21 +26,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { router } from "expo-router";
-import { useQueryClient } from "@tanstack/react-query";
-import { BottomSheet } from "@/components/ui/BottomSheet";
-import { Button } from "@/components/ui/Button";
-import { encounterService } from "@/services/encounter.service";
-import { sessionService } from "@/services/session.service";
-import { sessionKeys } from "@/services/query-keys";
-import type { DispositionType } from "@/types/encounter.types";
-import type { Session } from "@/types/session.types";
-import {
-  canStartNextRoundToday,
-  getEncounterType,
-} from "@/utils/encounter.utils";
-import { getDoctorWorkspacePath } from "@/utils/doctor-navigation.utils";
-import { colors, spacing, typography } from "@/theme";
 
 type IpAction = "finish" | "next_round" | "discharge";
 
@@ -116,6 +120,13 @@ export function SaveConsultationSheet({
       }
 
       if (ipAction === "finish") {
+        if (!sessionHasConsultationRecording(session)) {
+          Alert.alert(
+            "Recording required",
+            CONSULTATION_RECORDING_REQUIRED_MESSAGE,
+          );
+          return;
+        }
         await sessionService.updateStatus(sessionId, "completed");
         await invalidate();
         onClose();
@@ -149,7 +160,7 @@ export function SaveConsultationSheet({
         {!isIp ? (
           <>
             <Radio
-              label="Send home"
+              label="OP Discharged"
               selected={opAction === "home"}
               onPress={() => setOpAction("home")}
             />

@@ -113,6 +113,9 @@ export interface Session {
   todaySchedule?: RoundSchedule[];
   hasNextRoundToday?: boolean;
   allRoundsCompletedToday?: boolean;
+  readyForDischargeWorkflow?: boolean;
+  admissionTimeline?: import("@/types/encounter.types").AdmissionTimelineItem[];
+  roundHistory?: import("@/types/encounter.types").AdmissionTimelineItem[];
 }
 
 export interface CreateSessionData {

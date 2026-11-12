@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useRef } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -22,9 +22,19 @@ import {
 } from "@/utils/apiError.utils";
 import { showToast } from "@/store/toast.store";
 import { colors, spacing } from "@/theme";
+import { useFormScrollIntoView } from "@/hooks/useFormScrollIntoView";
 
 export default function CreateMedicineScreen() {
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+  const baseScrollBottomPadding = insets.bottom + spacing["3xl"];
+  const {
+    scrollViewportRef,
+    setFieldRef,
+    onFocusField,
+    onScroll,
+    scrollBottomPadding,
+  } = useFormScrollIntoView(scrollRef, baseScrollBottomPadding);
   const { organizationId } = useTenantScope();
   const { createMedicine } = useMedicineMutations();
   const {
@@ -83,30 +93,39 @@ export default function CreateMedicineScreen() {
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView
-          contentContainerStyle={[
-            styles.content,
-            { paddingBottom: insets.bottom + spacing["3xl"] },
-          ]}
-          keyboardShouldPersistTaps="handled"
-        >
-          <MedicineFormFields
-            fields={fields}
-            setFields={setFields}
-            conditionDraft={conditionDraft}
-            setConditionDraft={setConditionDraft}
-            genericNameTouchedRef={genericNameTouchedRef}
-            loading={loading}
-            onAddCondition={addCondition}
-            onRemoveCondition={removeCondition}
-          />
-          <Button
-            title={loading ? "Saving…" : "Save medicine"}
-            onPress={() => void handleSave()}
-            disabled={loading}
-            style={{ marginTop: spacing.lg }}
-          />
-        </ScrollView>
+        <View ref={scrollViewportRef} style={styles.flex}>
+          <ScrollView
+            ref={scrollRef}
+            contentContainerStyle={[
+              styles.content,
+              { paddingBottom: scrollBottomPadding },
+            ]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            onScroll={onScroll}
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}
+          >
+            <MedicineFormFields
+              fields={fields}
+              setFields={setFields}
+              conditionDraft={conditionDraft}
+              setConditionDraft={setConditionDraft}
+              genericNameTouchedRef={genericNameTouchedRef}
+              loading={loading}
+              onAddCondition={addCondition}
+              onRemoveCondition={removeCondition}
+              conditionFieldRef={setFieldRef("conditionDraft")}
+              onConditionFocus={onFocusField("conditionDraft")}
+            />
+            <Button
+              title={loading ? "Saving…" : "Save medicine"}
+              onPress={() => void handleSave()}
+              disabled={loading}
+              style={{ marginTop: spacing.lg }}
+            />
+          </ScrollView>
+        </View>
       </KeyboardAvoidingView>
     </View>
   );

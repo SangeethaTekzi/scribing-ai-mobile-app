@@ -1,5 +1,5 @@
-import React, { type MutableRefObject } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { type MutableRefObject, type Ref } from "react";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import {
@@ -18,6 +18,8 @@ interface MedicineFormFieldsProps {
   loading?: boolean;
   onAddCondition: () => void;
   onRemoveCondition: (condition: string) => void;
+  conditionFieldRef?: Ref<View>;
+  onConditionFocus?: () => void;
 }
 
 export function MedicineFormFields({
@@ -29,6 +31,8 @@ export function MedicineFormFields({
   loading = false,
   onAddCondition,
   onRemoveCondition,
+  conditionFieldRef,
+  onConditionFocus,
 }: MedicineFormFieldsProps) {
   return (
     <View style={styles.wrap}>
@@ -139,7 +143,7 @@ export function MedicineFormFields({
       <View style={styles.conditionSection}>
         <Text style={styles.conditionLabel}>Applicable conditions *</Text>
         <View style={styles.conditionRow}>
-          <View style={styles.conditionInput}>
+          <View ref={conditionFieldRef} style={styles.conditionInput}>
             <Input
               label="Condition"
               placeholder="e.g. Fever"
@@ -147,7 +151,9 @@ export function MedicineFormFields({
               editable={!loading}
               onChangeText={setConditionDraft}
               onSubmitEditing={onAddCondition}
+              onFocus={onConditionFocus}
               returnKeyType="done"
+              style={styles.conditionTextInput}
             />
           </View>
           <Button
@@ -219,14 +225,20 @@ const styles = StyleSheet.create({
   },
   conditionRow: {
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     gap: spacing.sm,
   },
   conditionInput: { flex: 1, minWidth: 0 },
+  conditionTextInput: {
+    color: colors.foreground,
+    ...Platform.select({
+      android: { backgroundColor: colors.white },
+      default: {},
+    }),
+  },
   addBtn: {
     flexShrink: 0,
     minWidth: 80,
-    marginBottom: spacing.xs,
   },
   hint: { ...typography.caption, color: colors.muted },
   emptyConditions: {

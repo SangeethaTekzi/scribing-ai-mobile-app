@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -33,6 +33,7 @@ import {
 } from "@/utils/apiError.utils";
 import { showToast } from "@/store/toast.store";
 import { colors, radius, spacing, typography } from "@/theme";
+import { useFormScrollIntoView } from "@/hooks/useFormScrollIntoView";
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
@@ -46,6 +47,15 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 export default function MedicineDetailScreen() {
   const { medicineId } = useLocalSearchParams<{ medicineId: string }>();
   const insets = useSafeAreaInsets();
+  const scrollRef = useRef<ScrollView>(null);
+  const baseScrollBottomPadding = insets.bottom + spacing["5xl"];
+  const {
+    scrollViewportRef,
+    setFieldRef,
+    onFocusField,
+    onScroll,
+    scrollBottomPadding,
+  } = useFormScrollIntoView(scrollRef, baseScrollBottomPadding);
   const { organizationId: tenantOrgId } = useTenantScope();
   const { canEditMedicine } = useAccessControl();
   const { updateMedicine } = useMedicineMutations();
@@ -150,16 +160,23 @@ export default function MedicineDetailScreen() {
         style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <ScrollView
-          contentContainerStyle={[
-            styles.content,
-            {
-              paddingBottom:
-                insets.bottom + (isEditing ? spacing["5xl"] : spacing["3xl"]),
-            },
-          ]}
-          keyboardShouldPersistTaps="handled"
-        >
+        <View ref={scrollViewportRef} style={styles.flex}>
+          <ScrollView
+            ref={scrollRef}
+            contentContainerStyle={[
+              styles.content,
+              {
+                paddingBottom: isEditing
+                  ? scrollBottomPadding
+                  : insets.bottom + spacing["3xl"],
+              },
+            ]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode={isEditing ? "on-drag" : undefined}
+            onScroll={isEditing ? onScroll : undefined}
+            scrollEventThrottle={16}
+            showsVerticalScrollIndicator={false}
+          >
           {!isEditing ? (
             <>
               <Card style={styles.hero}>
@@ -235,10 +252,13 @@ export default function MedicineDetailScreen() {
                 loading={saving}
                 onAddCondition={addCondition}
                 onRemoveCondition={removeCondition}
+                conditionFieldRef={setFieldRef("conditionDraft")}
+                onConditionFocus={onFocusField("conditionDraft")}
               />
             </Card>
           )}
-        </ScrollView>
+          </ScrollView>
+        </View>
 
         {isEditing ? (
           <View

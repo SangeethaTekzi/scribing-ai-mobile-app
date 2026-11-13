@@ -16,6 +16,7 @@ import { useMedicineMutations } from "@/hooks/medicines/useMedicineMutations";
 import { useMedicineFormState } from "@/hooks/medicines/useMedicineFormState";
 import { useTenantScope } from "@/hooks/useTenantScope";
 import { validateMedicineForm } from "@/utils/medicineFormValidation.utils";
+import { findMedicineFormularyDuplicateMessage } from "@/utils/medicineDuplicateCheck.utils";
 import {
   getApiErrorMessage,
   isMedicineDuplicateError,
@@ -55,6 +56,20 @@ export default function CreateMedicineScreen() {
     );
     if (!result.ok) {
       Alert.alert(result.title, result.message);
+      return;
+    }
+
+    const duplicateMessage = await findMedicineFormularyDuplicateMessage(
+      organizationId || "",
+      result.payload,
+    );
+    if (duplicateMessage) {
+      showToast({
+        title: "Already added",
+        message: duplicateMessage,
+        variant: "error",
+        durationMs: 5000,
+      });
       return;
     }
 

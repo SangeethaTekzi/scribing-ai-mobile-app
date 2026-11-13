@@ -27,6 +27,7 @@ import {
   getMedicineId,
 } from "@/utils/medicine.utils";
 import { validateMedicineForm } from "@/utils/medicineFormValidation.utils";
+import { findMedicineFormularyDuplicateMessage } from "@/utils/medicineDuplicateCheck.utils";
 import {
   getApiErrorMessage,
   isMedicineDuplicateError,
@@ -110,6 +111,21 @@ export default function MedicineDetailScreen() {
     const result = validateMedicineForm(fields, conditionDraft, orgId);
     if (!result.ok) {
       Alert.alert(result.title, result.message);
+      return;
+    }
+
+    const duplicateMessage = await findMedicineFormularyDuplicateMessage(
+      orgId,
+      result.payload,
+      id,
+    );
+    if (duplicateMessage) {
+      showToast({
+        title: "Already exists",
+        message: duplicateMessage,
+        variant: "error",
+        durationMs: 5000,
+      });
       return;
     }
 
